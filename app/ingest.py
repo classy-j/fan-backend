@@ -1,15 +1,16 @@
-# data_ingest.py
+"""Build the Chroma vector store from the FAN manual.
+
+Run once before starting the API:  python -m app.ingest
+"""
 import os
 import re
 import pdfplumber
 import chromadb
 from chromadb.utils import embedding_functions
 
-# ----------- CONFIG -----------
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-PDF_PATH = os.path.join(BASE_DIR, "FAN_Manual.pdf")
-CHROMA_DB_DIR = os.path.join(BASE_DIR, "chroma_db")
-COLLECTION_NAME = "fan_manual"
+from .config import MANUAL_PDF as PDF_PATH, CHROMA_DIR, COLLECTION_NAME, EMBEDDING_MODEL
+
+CHROMA_DB_DIR = str(CHROMA_DIR)
 
 # ------------------------------
 
@@ -44,7 +45,7 @@ def ingest_to_chroma(sections):
     # ใช้ OpenAI embedding
     embedding_func = embedding_functions.OpenAIEmbeddingFunction(
         api_key=os.getenv("OPENAI_API_KEY"),
-        model_name="text-embedding-3-small"
+        model_name=EMBEDDING_MODEL
     )
 
     # ลบ collection เก่าแล้วสร้างใหม่ (กันข้อมูลซ้ำ)
