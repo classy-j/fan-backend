@@ -1,14 +1,19 @@
-# arai_rag.py
-import chromadb
-chromadb.config.telemetry = False
-import os
-from openai import OpenAI
+"""Arai - onboarding agent: RAG Q&A over the company training manual."""
 import re
+from functools import lru_cache
+import os
 
-import chromadb.segment.impl.metadata.sqlite as sqlite_module
+import chromadb
 from chromadb.utils import embedding_functions
+import chromadb.segment.impl.metadata.sqlite as sqlite_module
+from openai import OpenAI
 
-# ----------- PATCH SQLITE DECODE -----------
+from .config import CHROMA_DIR, COLLECTION_NAME, EMBEDDING_MODEL, CHAT_MODEL
+
+TOP_K = 5
+
+
+# Work around a Chroma seq_id decoding issue seen with some persisted DBs.
 def safe_decode_seq_id(seq_id_bytes):
     if isinstance(seq_id_bytes, int):
         return seq_id_bytes
@@ -17,33 +22,29 @@ def safe_decode_seq_id(seq_id_bytes):
             return int.from_bytes(seq_id_bytes, "big")
     raise ValueError(f"Unexpected seq_id_bytes: {seq_id_bytes}")
 
+
 sqlite_module._decode_seq_id = safe_decode_seq_id
-# -------------------------------------------
 
-# ---------------- CONFIG ----------------
-PERSIST_DIR = "./chroma_db"
-COLLECTION_NAME = "fan_manual"
-TOP_K = 5
-# ----------------------------------------
 
-# Init OpenAI client
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+@lru_cache(maxsize=1)
+def get_client():
+    return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Init embeddings & DB
-embedding_func = embedding_functions.OpenAIEmbeddingFunction(
-    api_key=os.getenv("OPENAI_API_KEY"),
-    model_name="text-embedding-3-small"
-)
 
-chroma_client = chromadb.PersistentClient(path=PERSIST_DIR)
-collection = chroma_client.get_collection(
-    name=COLLECTION_NAME,
-    embedding_function=embedding_func
-)
+@lru_cache(maxsize=1)
+def get_collection():
+    """Open the persisted collection lazily, so the API can start without it."""
+    embedding_func = embedding_functions.OpenAIEmbeddingFunction(
+        api_key=os.getenv("OPENAI_API_KEY"),
+        model_name=EMBEDDING_MODEL,
+    )
+    chroma_client = chromadb.PersistentClient(path=str(CHROMA_DIR))
+    return chroma_client.get_collection(name=COLLECTION_NAME, embedding_function=embedding_func)
+
 
 # ---------------- HELPERS ----------------
 def retrieve(query, top_k=TOP_K):
-    res = collection.query(
+    res = get_collection().query(
         query_texts=[query],
         n_results=top_k,
         include=["documents", "metadatas", "distances"]
@@ -137,8 +138,8 @@ Answer format: {style_instr}
 """
 
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o-mini",
+        response = get_client().chat.completions.create(
+            model=CHAT_MODEL,
             messages=[
                 {"role": "system", "content": "You are an accurate assistant for employees. ONLY use provided excerpts."},
                 {"role": "user", "content": prompt}

@@ -1,11 +1,8 @@
-# /SAP_FAN/jai_agent.py
+"""Jai - growth & mentorship agent (career path, weekly nudges, skill tree)."""
 import pandas as pd
 import json
 
-# ---------------- CONFIG ----------------
-PERFORMANCE_FILE = "mock_performance.csv"
-CAREER_PATH_FILE = "career_path.json"
-NUDGE_FILE = "nudge_library.json"
+from .config import PERFORMANCE_FILE, CAREER_PATH_FILE, NUDGE_FILE
 
 
 # ---------------- HELPERS ----------------

@@ -1,4 +1,4 @@
-#schedule.py
+"""Oai - operations agent: fair greedy shift scheduling and shift swaps."""
 import pandas as pd
 import random
 

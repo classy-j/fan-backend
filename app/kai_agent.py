@@ -1,12 +1,9 @@
-# /SAP_FAN/kai_agent.py
+"""Kai - engagement agent (idea box, upvotes, challenges, kudos)."""
 import pandas as pd
 import json
 from datetime import datetime
 
-# ---------------- CONFIG ----------------
-IDEAS_FILE = "ideas.csv"
-CHALLENGES_FILE = "challenges.json"
-KUDOS_FILE = "kudos.csv"
+from .config import IDEAS_FILE, CHALLENGES_FILE, KUDOS_FILE
 
 
 # ---------------- HELPERS ----------------
@@ -26,7 +23,7 @@ def submit_idea(idea_text, employee, branch):
     try:
         df = load_csv(IDEAS_FILE)
     except FileNotFoundError:
-        df = pd.concat([df, pd.DataFrame([new_row])], ignore_index=True)
+        df = pd.DataFrame(columns=["idea_id", "idea_text", "submitted_by", "branch_id", "upvotes", "timestamp"])
 
     new_row = pd.DataFrame([{
         "idea_id": len(df) + 1,
@@ -65,7 +62,7 @@ Prize: {ch['prize']}
 kudos_log = []  # เก็บ kudos ไว้ชั่วคราว
 
 def post_kudos(from_emp, to_emp, message):
-    path = "kudos.csv"
+    path = KUDOS_FILE
     df = load_csv(path)
     new_row = {
         "kudos_id": len(df) + 1,

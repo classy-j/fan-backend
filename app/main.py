@@ -1,23 +1,29 @@
-#api.py
+"""FAN (Franchise AI Navigator) - FastAPI entry point."""
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 import pandas as pd
 from pydantic import BaseModel
-from scheduler import solve_schedule, swap_shift
-from arai_rag import answer_question
-from jai_agent import get_growth_path, get_weekly_nudge, get_skill_tree
-from kai_agent import submit_idea, upvote_idea, view_challenge, post_kudos, manager_summary
+
+from .config import CORS_ORIGINS, IDEAS_FILE, KUDOS_FILE
+from .scheduler import solve_schedule, swap_shift
+from .jai_agent import get_growth_path, get_weekly_nudge, get_skill_tree
+from .kai_agent import submit_idea, upvote_idea, view_challenge, post_kudos, manager_summary
 
 
-app = FastAPI()
+app = FastAPI(title="FAN - Franchise AI Navigator API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # หรือเฉพาะ ["http://localhost:3000"]
+    allow_origins=CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
 
 # ---------- Arai ----------
 class QueryRequest(BaseModel):
@@ -27,6 +33,7 @@ class QueryRequest(BaseModel):
 @app.post("/ask_arai")
 def ask_arai(req: QueryRequest):
     try:
+        from .arai_rag import answer_question  # lazy: needs OpenAI key + ingested DB
         ans, sources = answer_question(req.question, style=req.style)
         return {"answer": ans, "sources": sources}
     except Exception as e:
@@ -53,7 +60,7 @@ def swap_shift_api(data: dict):
     emp1 = data["emp1"]
     emp2 = data["emp2"]
     shift = data["shift"]
-    availability = pd.DataFrame(data["availability"])  # 👈 เอา preview มาด้วย
+    availability = pd.DataFrame(data["availability"])  # original availability from the preview step
 
     success, new_schedule = swap_shift(schedule, emp1, emp2, shift, availability)
 
@@ -68,7 +75,7 @@ def reset(data: dict):
     return {"schedule": original.to_dict()}
 
 
-# ---------- ๋Jai ----------
+# ---------- Jai ----------
 @app.get("/jai/growth/{emp_id}")
 def jai_growth(emp_id: int):
     return {"result": get_growth_path(emp_id)}
@@ -82,8 +89,6 @@ def jai_skills(emp_id: int):
     return {"result": get_skill_tree(emp_id)}
 
 # ---------- Kai ----------
-from pydantic import BaseModel
-
 class IdeaRequest(BaseModel):
     idea_text: str
     employee: str
@@ -117,18 +122,15 @@ def kai_summary():
 @app.get("/kai/ideas")
 def kai_ideas():
     try:
-        df = pd.read_csv("ideas.csv")
+        df = pd.read_csv(IDEAS_FILE)
         return {"ideas": df.to_dict(orient="records")}
     except FileNotFoundError:
         return {"ideas": []}
-
-KUDOS_FILE = "kudos.csv"
 
 @app.get("/kai/kudos_list")
 def kai_kudos_list():
     try:
         df = pd.read_csv(KUDOS_FILE)
-        # แปลงเป็น dict list
         records = df.to_dict(orient="records")
         return {"kudos": records}
     except Exception as e:
